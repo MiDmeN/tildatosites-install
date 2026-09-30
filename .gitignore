@@ -4,3 +4,5 @@ group_vars/places_feed/vars.yml
 group_vars/places_feed/vault.yml
 *.retry
 out.txt
+*.tar.gz
+.collections/

@@ -1,0 +1,10 @@
+---
+# Тот же установщик, что playbook.yml в корне, — для подключения коллекцией:
+#   - import_playbook: midmen.tildatosites.install
+# Переменные — в group_vars рядом с вашим inventory.
+- name: Фиды каталога Tilda
+  hosts: places_feed
+  become: true
+  roles:
+    - role: midmen.tildatosites.docker
+    - role: midmen.tildatosites.places_feed

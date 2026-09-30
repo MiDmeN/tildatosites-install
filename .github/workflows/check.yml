@@ -28,6 +28,13 @@ jobs:
           printf '[places_feed]\nlocalhost ansible_connection=local\n' > inventory.ci.ini
           ansible-playbook -i inventory.ci.ini playbook.yml --syntax-check
 
+      - name: Установщик как коллекция (import_playbook midmen.tildatosites.install)
+        run: |
+          ansible-galaxy collection install "git+file://$GITHUB_WORKSPACE,$GITHUB_SHA" -p "$RUNNER_TEMP/collections"
+          printf -- '- import_playbook: midmen.tildatosites.install\n' > "$RUNNER_TEMP/site.yml"
+          ANSIBLE_COLLECTIONS_PATH="$RUNNER_TEMP/collections" \
+            ansible-playbook -i inventory.ci.ini "$RUNNER_TEMP/site.yml" --syntax-check
+
       - name: Не заданы адрес и владелец — playbook останавливается
         run: |
           if ansible-playbook -i inventory.ci.ini playbook.yml > out.txt 2>&1; then
