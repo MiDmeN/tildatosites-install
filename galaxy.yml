@@ -1,0 +1,25 @@
+---
+# Коллекция Ansible: установщик можно подключить к своему playbook по версии, не копируя его.
+#   requirements.yml:
+#     collections:
+#       - name: https://github.com/MiDmeN/tildatosites-install.git
+#         type: git
+#         version: v1.0.0
+#   playbook:  - import_playbook: midmen.tildatosites.install
+namespace: midmen
+name: tildatosites
+version: 1.0.0
+readme: README.md
+authors:
+  - MiDmeN
+description: Установка «Фиды каталога Tilda» (образ midmen/tildatosites) на сервер — Docker, compose, настройки запуска
+repository: https://github.com/MiDmeN/tildatosites-install
+tags: [docker, tilda, feeds]
+dependencies: {}
+build_ignore:
+  - .github
+  - inventory.ini
+  - inventory.ci.ini
+  - group_vars/*/vars.yml
+  - group_vars/*/vault.yml
+  - "*.tar.gz"
