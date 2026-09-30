@@ -26,7 +26,54 @@ cp group_vars/places_feed/vars.yml.example group_vars/places_feed/vars.yml   # �
 ansible-playbook playbook.yml
 ```
 
-В `inventory.ini` — адрес сервера и пользователь ssh. В `vars.yml` — только то, что нужно для запуска:
+`inventory.ini` и `vars.yml` — ваши файлы. Они в `.gitignore` и в репозиторий не попадают; в репозитории
+только образцы `*.example`.
+
+### inventory.ini — какой сервер
+
+Впишите адрес сервера и пользователя, под которым Ansible заходит по ssh (по ключу):
+```
+[places_feed]
+feed-server ansible_host=203.0.113.10 ansible_user=root
+```
+Не root, а пользователь с sudo — `ansible_user=admin`; если sudo спрашивает пароль, запускайте playbook
+с `--ask-become-pass`. Проверить, что сервер доступен: `ansible places_feed -m ping`.
+
+### vars.yml — адрес, владелец, HTTPS
+
+С доменом, HTTPS ставится сам (DNS-запись домена указывает на сервер, свободны порты 80 и 443):
+```
+feed_public_url: https://feed.company.ru
+feed_owner: ivanov
+feed_https: true
+```
+
+Порт 443 на сервере занят — HTTPS на другом порту:
+```
+feed_public_url: https://feed.company.ru:8443
+feed_owner: ivanov
+feed_https: true
+feed_https_port: 8443
+```
+
+HTTPS даёт ваш прокси (nginx и т. п.) на этом же сервере — приложение слушает `127.0.0.1:8080`:
+```
+feed_public_url: https://feed.company.ru
+feed_owner: ivanov
+feed_https: false
+```
+
+Проба без домена, по IP и http:
+```
+feed_public_url: http://203.0.113.10:8080
+feed_owner: ivanov
+feed_https: false
+feed_bind: 0.0.0.0
+```
+
+`feed_owner` — логин, под которым вы войдёте в редактор; `owner` и адреса `example.com` playbook не примет.
+
+Все переменные `vars.yml`:
 
 | Переменная | Что это |
 |---|---|
