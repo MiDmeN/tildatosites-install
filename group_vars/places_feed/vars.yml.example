@@ -1,0 +1,21 @@
+---
+# Настройки установки — только то, что нужно для запуска. Скопируйте в vars.yml и впишите свои значения.
+# Всё остальное (фид Tilda, организация, площадки, Telegram, перенос, резервные копии, ключи) администратор
+# задаёт потом в редакторе: «Настройки».
+
+# адрес, на котором будут редактор (/admin/) и фиды для площадок
+feed_public_url: https://feed.example.com
+# логин владельца: в конце установки playbook покажет ссылку для его первого входа
+feed_owner: ivanov
+# образ — docker.io/midmen/tildatosites, последняя версия (latest); закрепить версию:
+# feed_version: "2.0.1"
+# если репозиторий образа закрытый — логин Docker Hub (токен — vault_feed_registry_password в vault.yml):
+# feed_registry_user: midmen
+# true — HTTPS ставится сам: сертификат Let's Encrypt на домен из feed_public_url (нужны порт 80, порт HTTPS
+# и DNS-запись домена на этот сервер); false — HTTPS даёт ваш прокси, приложение слушает 127.0.0.1:8080
+feed_https: true
+# порт HTTPS, если 443 занят (тогда и в feed_public_url: https://feed.example.com:8443):
+# feed_https_port: 8443
+
+# Остальные переменные (папка установки, порты, расписание, профиль сайта, закрытый реестр) —
+# с пояснениями в roles/places_feed/defaults/main.yml; менять их обычно не нужно.

@@ -1,0 +1,32 @@
+---
+# Docker Engine и compose на Debian и Ubuntu — из официального репозитория Docker.
+- name: Пакеты для репозитория
+  ansible.builtin.apt:
+    name: [ca-certificates, curl]
+    update_cache: true
+
+- name: Папка ключей apt
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: "0755"
+
+# curl, а не get_url: get_url в ansible-core до 2.15 не работает с Python 3.12 на сервере
+- name: Ключ репозитория Docker
+  ansible.builtin.command:
+    cmd: curl -fsSL -o /etc/apt/keyrings/docker.asc https://download.docker.com/linux/{{ ansible_facts.distribution | lower }}/gpg
+    creates: /etc/apt/keyrings/docker.asc
+
+- name: Репозиторий Docker
+  ansible.builtin.apt_repository:
+    repo: >-
+      deb [arch={{ 'arm64' if ansible_facts.architecture == 'aarch64' else 'amd64' }}
+      signed-by=/etc/apt/keyrings/docker.asc]
+      https://download.docker.com/linux/{{ ansible_facts.distribution | lower }}
+      {{ ansible_facts.distribution_release }} stable
+    filename: docker
+
+- name: Docker Engine и compose
+  ansible.builtin.apt:
+    name: [docker-ce, docker-ce-cli, containerd.io, docker-compose-plugin]
+    update_cache: true

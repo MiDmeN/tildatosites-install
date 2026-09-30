@@ -1,0 +1,28 @@
+---
+# Docker Engine и плагин compose из официального репозитория Docker. Если docker compose уже есть — установка
+# пропускается целиком (её задачи даже не подключаются).
+- name: Проверить, установлен ли docker compose
+  ansible.builtin.command: docker compose version
+  register: docker_compose_check
+  changed_when: false
+  failed_when: false
+
+- name: Система поддерживается
+  when: docker_compose_check.rc != 0
+  ansible.builtin.assert:
+    that: ansible_facts.os_family in ['Debian', 'RedHat']
+    fail_msg: >-
+      Docker ставится автоматически только на Debian, Ubuntu и семействе RHEL (здесь {{ ansible_facts.distribution }}).
+      Поставьте Docker Engine и плагин compose вручную и запустите playbook снова.
+    quiet: true
+
+- name: Установить Docker
+  when: docker_compose_check.rc != 0
+  ansible.builtin.include_tasks:
+    file: "{{ ansible_facts.os_family | lower }}.yml"
+
+- name: Docker запущен и включён
+  ansible.builtin.systemd_service:
+    name: docker
+    state: started
+    enabled: true

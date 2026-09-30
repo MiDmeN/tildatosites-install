@@ -1,0 +1,40 @@
+# Фиды каталога Tilda. Папка установки (например /opt/places-feed):
+#   compose.yaml  .env  secrets/  config/site.json  config/profile/  config/seed/  config/assets/
+#   data/  media/  public/  report/          ← хранимые файлы: тексты, пользователи, фото, фиды
+# Запуск: docker compose up -d   Первый вход владельца — ссылка в `docker compose logs web`.
+name: ${FEED_INSTANCE:-places-feed}
+
+x-app: &app
+  image: ${FEED_IMAGE:-docker.io/midmen/tildatosites:latest}
+  restart: unless-stopped
+  env_file: .env
+  environment:
+    TZ: ${TZ:-Europe/Moscow}
+  user: "${FEED_UID:-10001}:${FEED_GID:-10001}"
+  volumes:
+    - ./config:/config:ro
+    - ./data:/data
+    - ./media:/media
+    - ./public:/public
+    - ./report:/report
+    # ключи и пароли: по файлу на ключ, имя файла — имя переменной (tg_bot_token → TG_BOT_TOKEN)
+    - ./secrets:/run/secrets:ro
+  # если внешние сервисы доступны только через туннель на самом сервере:
+  # прокси в настройках — socks5h://host.docker.internal:1080
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+
+services:
+  web:
+    <<: *app
+    command: web
+    ports:
+      - "${FEED_BIND:-127.0.0.1}:${FEED_HTTP_PORT:-8080}:8080"
+
+  scheduler:
+    <<: *app
+    command: scheduler
+    healthcheck:
+      disable: true
+    depends_on:
+      - web

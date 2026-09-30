@@ -1,0 +1,247 @@
+---
+# Установка и обновление: папка установки, настройки, ключи, образ, запуск, проверка. Повторный запуск
+# с новыми переменными (например, feed_version) — обновление; данные в data/, media/ не трогаются.
+
+- name: Настройки сайта (необязательно — обычно всё задаётся в редакторе)
+  ansible.builtin.set_fact:
+    feed_site_effective: "{{ lookup('file', feed_site_file) | from_json if feed_site_file else feed_site }}"
+
+- name: Проверить обязательные переменные
+  ansible.builtin.assert:
+    that:
+      - feed_public_url is match('^https?://')
+      - "'example.' not in feed_public_url"
+      - feed_owner | length > 0 and feed_owner != 'owner'
+      - "'<' not in feed_image"
+      - not (feed_https | bool) or feed_public_url is match('^' ~ (feed_https_origin | regex_escape) ~ '(/|$)')
+    fail_msg: >-
+      Не заданы обязательные переменные (group_vars/places_feed/vars.yml): feed_public_url — свой адрес,
+      feed_owner — свой логин; при feed_https feed_public_url должен начинаться с {{ feed_https_origin }}
+      (домен feed_domain и порт feed_https_port).
+    quiet: true
+  vars:
+    feed_https_origin: >-
+      https://{{ feed_domain }}{{ '' if feed_https_port | int == 443 else ':' ~ feed_https_port }}
+
+- name: Порт HTTPS
+  when: feed_https | bool
+  ansible.builtin.assert:
+    that:
+      - feed_https_port | int > 0 and feed_https_port | int < 65536
+      - feed_https_port | int != 80
+    fail_msg: "feed_https_port — номер порта, кроме 80 (80 нужен для выпуска сертификата)"
+    quiet: true
+
+- name: Папка установки
+  ansible.builtin.file:
+    path: "{{ feed_dir }}"
+    state: directory
+    mode: "0755"
+
+- name: Папки данных (их пишет приложение)
+  ansible.builtin.file:
+    path: "{{ feed_dir }}/{{ item }}"
+    state: directory
+    owner: "{{ feed_uid }}"
+    group: "{{ feed_gid }}"
+    mode: "0750"
+  loop: [data, media, public, report]
+
+- name: Папки настроек
+  ansible.builtin.file:
+    path: "{{ feed_dir }}/{{ item }}"
+    state: directory
+    mode: "0755"
+  loop: [config, config/seed, config/assets, config/profile]
+
+- name: Папка ключей
+  ansible.builtin.file:
+    path: "{{ feed_dir }}/secrets"
+    state: directory
+    owner: "{{ feed_uid }}"
+    group: "{{ feed_gid }}"
+    mode: "0700"
+
+- name: Файлы compose
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "{{ feed_dir }}/{{ item }}"
+    mode: "0644"
+  loop: [compose.yaml, compose.https.yaml]
+  notify: Перезапустить приложение
+
+- name: Папка сертификатов HTTPS
+  when: feed_https | bool
+  ansible.builtin.file:
+    path: "{{ feed_dir }}/caddy"
+    state: directory
+    mode: "0700"
+
+- name: Файл .env
+  ansible.builtin.template:
+    src: env.j2
+    dest: "{{ feed_dir }}/.env"
+    mode: "0600"
+  notify: Перезапустить приложение
+
+- name: Настройки сайта (config/site.json)
+  ansible.builtin.copy:
+    content: "{{ feed_site_effective | to_nice_json(indent=2) }}\n"
+    dest: "{{ feed_dir }}/config/site.json"
+    mode: "0644"
+  notify: Перезапустить приложение
+
+- name: Профиль сайта, начальные данные, файлы сайта (если заданы)
+  ansible.builtin.copy:
+    src: "{{ item.src }}/"
+    dest: "{{ feed_dir }}/config/{{ item.dest }}/"
+    mode: "0644"
+    directory_mode: "0755"
+  loop:
+    - {src: "{{ feed_profile_dir }}", dest: profile}
+    - {src: "{{ feed_seed_dir }}", dest: seed}
+    - {src: "{{ feed_assets_dir }}", dest: assets}
+  when: item.src | length > 0
+  notify: Перезапустить приложение
+
+# ключи — Docker secrets: по файлу на ключ, читает только пользователь приложения.
+# Ключ, который уже лежит на сервере (непустой файл), не перезаписывается — ни из vault, ни пустым.
+# Нет файла — создаётся со значением из vault, а без него пустым; пустой файл заполняется из vault.
+# Заменить ключ: удалить его файл в secrets/ и запустить playbook, или ввести ключ в «Настройках» редактора.
+- name: Какие ключи уже есть на сервере
+  ansible.builtin.stat:
+    path: "{{ feed_dir }}/secrets/{{ item }}"
+    get_checksum: false
+  loop: "{{ feed_secret_names + feed_extra_secret_names }}"
+  register: feed_secret_files
+
+- name: Ключи и пароли — только новые (из vault или пустые)
+  ansible.builtin.copy:
+    content: "{{ vault_feed_secrets[item.item] | default('') }}"
+    dest: "{{ feed_dir }}/secrets/{{ item.item }}"
+    owner: "{{ feed_uid }}"
+    group: "{{ feed_gid }}"
+    mode: "0400"
+  loop: "{{ feed_secret_files.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+  when: >-
+    not item.stat.exists or
+    (item.stat.size == 0 and (vault_feed_secrets[item.item] | default('') | length > 0))
+  no_log: true
+  notify: Перезапустить приложение
+
+- name: Права на ключи, которые уже были
+  ansible.builtin.file:
+    path: "{{ feed_dir }}/secrets/{{ item.item }}"
+    owner: "{{ feed_uid }}"
+    group: "{{ feed_gid }}"
+    mode: "0400"
+  loop: "{{ feed_secret_files.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+  when: item.stat.exists
+
+- name: Порты в файрволе
+  when: feed_firewall | bool
+  vars:
+    feed_ports: "{{ ['80', feed_https_port | string] if feed_https | bool else ([feed_http_port | string] if feed_bind != '127.0.0.1' else []) }}"
+  block:
+    - name: Какой файрвол включён
+      ansible.builtin.shell: >-
+        if systemctl is-active --quiet firewalld; then echo firewalld;
+        elif command -v ufw >/dev/null && ufw status | grep -q 'Status: active'; then echo ufw; fi
+      register: feed_fw
+      changed_when: false
+
+    # командами, а не модулями коллекций: хватает ansible-core
+    - name: Открыть порты (firewalld)
+      when: feed_fw.stdout == 'firewalld'
+      ansible.builtin.shell: >-
+        if firewall-cmd --query-port={{ item }}/tcp >/dev/null; then echo open; else
+        firewall-cmd --permanent --add-port={{ item }}/tcp && firewall-cmd --add-port={{ item }}/tcp; fi
+      loop: "{{ feed_ports }}"
+      register: feed_fw_open
+      changed_when: "'open' not in feed_fw_open.stdout"
+
+    - name: Открыть порты (ufw)
+      when: feed_fw.stdout == 'ufw'
+      ansible.builtin.command: ufw allow {{ item }}/tcp
+      loop: "{{ feed_ports }}"
+      register: feed_ufw_open
+      changed_when: "'Skipping' not in feed_ufw_open.stdout"
+
+- name: Вход в реестр образов
+  when: feed_registry_user | length > 0
+  ansible.builtin.command:
+    cmd: docker login {{ feed_registry }} --username {{ feed_registry_user }} --password-stdin
+    stdin: "{{ vault_feed_registry_password }}"
+  no_log: true
+  changed_when: false
+
+- name: Скачать образ
+  when: feed_pull | bool
+  ansible.builtin.command:
+    cmd: docker compose pull
+    chdir: "{{ feed_dir }}"
+  register: feed_pulled
+  changed_when: "'Pulled' in feed_pulled.stderr or 'Downloaded' in feed_pulled.stderr"
+  notify: Перезапустить приложение
+
+- name: Запустить
+  ansible.builtin.command:
+    cmd: docker compose up -d --remove-orphans
+    chdir: "{{ feed_dir }}"
+  register: feed_up
+  changed_when: "'Started' in feed_up.stderr or 'Created' in feed_up.stderr"
+
+- name: Применить изменения сразу
+  ansible.builtin.meta: flush_handlers
+
+- name: Дождаться, пока приложение ответит
+  ansible.builtin.command:
+    cmd: docker compose exec -T web curl -fsS http://127.0.0.1:8080/healthz
+    chdir: "{{ feed_dir }}"
+  register: feed_health
+  until: feed_health.rc == 0
+  retries: 20
+  delay: 3
+  changed_when: false
+
+- name: Проверка настроек (doctor.py)
+  ansible.builtin.command:
+    cmd: docker compose exec -T web python doctor.py --online
+    chdir: "{{ feed_dir }}"
+  register: feed_doctor
+  changed_when: false
+  failed_when: false
+
+- name: Ссылка для первого входа владельца
+  ansible.builtin.shell:
+    cmd: set -o pipefail; docker compose logs web 2>&1 | grep 'Первый вход владельца' | tail -1
+    chdir: "{{ feed_dir }}"
+    executable: /bin/bash
+  register: feed_owner_link
+  changed_when: false
+  failed_when: false
+
+- name: Установленная версия
+  ansible.builtin.command:
+    cmd: docker compose exec -T web python feed.py version
+    chdir: "{{ feed_dir }}"
+  register: feed_installed
+  changed_when: false
+
+- name: Итог установки
+  vars:
+    feed_v: "{{ feed_installed.stdout | from_json }}"
+  ansible.builtin.debug:
+    msg:
+      - "Версия {{ feed_v.version }}, сборка {{ feed_v.build or '—' }}, профиль {{ feed_v.profile }}
+         {{ feed_v.profile_version }}, образ {{ feed_image }}"
+      - "Редактор: {{ feed_admin_url }}   Фиды: {{ feed_public_url | regex_replace('/$', '') }}/yandex.yml,
+         {{ feed_public_url | regex_replace('/$', '') }}/2gis.yml"
+      - >-
+        {{ feed_owner_link.stdout | regex_replace('^.*\| ', '')
+           if feed_owner_link.stdout else 'владелец уже задал пароль — ссылка не выдавалась' }}
+      - "{{ feed_doctor.stdout_lines }}"

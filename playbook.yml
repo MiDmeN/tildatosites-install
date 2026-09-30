@@ -1,0 +1,9 @@
+---
+# Установка фидов каталога Tilda на сервер: Docker, папка установки, настройки, профиль, ключи, запуск.
+#   ansible-playbook playbook.yml                    (с vault.yml — добавить --ask-vault-pass)
+- name: Фиды каталога Tilda
+  hosts: places_feed
+  become: true
+  roles:
+    - role: docker
+    - role: places_feed

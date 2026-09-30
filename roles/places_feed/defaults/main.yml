@@ -1,0 +1,78 @@
+---
+# Все переменные установки и их значения по умолчанию. Свои значения — в group_vars/places_feed/vars.yml
+# (пример: vars.yml.example), ключи и пароли — в group_vars/places_feed/vault.yml (ansible-vault).
+
+# ── обязательно ─────────────────────────────────────────────────────────────────
+# внешний адрес: по нему площадки скачивают фиды и фото, а люди открывают редактор (/admin/)
+feed_public_url: "https://feed.example.com"
+# логин владельца: при первой установке ему выдаётся ссылка для входа (playbook покажет её в конце)
+feed_owner: owner
+# образ в реестре (Docker Hub и т. п.) и его тег: номер версии закрепляет установку, latest — последняя сборка
+feed_image_repo: "docker.io/midmen/tildatosites"
+feed_version: latest
+
+# ── HTTPS ──────────────────────────────────────────────────────────────────────
+# true — поставить рядом прокси Caddy с сертификатом Let's Encrypt (DNS домена — на сервер).
+# false — HTTPS даёт ваш прокси, приложение слушает feed_bind:feed_http_port.
+feed_https: false
+feed_domain: "{{ feed_public_url | urlsplit('hostname') }}"
+# порт HTTPS; не 443 — тогда он же и в feed_public_url (https://feed.company.ru:8443).
+# Порт 80 нужен всегда: через него Let's Encrypt подтверждает домен при выпуске сертификата.
+feed_https_port: 443
+
+# ── можно не менять ─────────────────────────────────────────────────────────────
+# папка установки: compose.yaml, .env, secrets/, config/, data/, media/, public/, report/
+feed_dir: /opt/places-feed
+# имя установки (проект compose): у двух установок на одном сервере должны быть разные
+feed_instance: places-feed
+feed_image: "{{ feed_image_repo }}:{{ feed_version }}"
+# вход в закрытый реестр (пусто — без входа); пароль или токен — vault_feed_registry_password
+feed_registry: ""
+feed_registry_user: ""
+# скачивать образ при каждом запуске (false — образ уже загружен на сервер: docker load)
+feed_pull: true
+
+# сеть: 127.0.0.1 — только для прокси на этом же сервере; 0.0.0.0 — открыть порт наружу
+feed_bind: 127.0.0.1
+feed_http_port: 8080
+# открыть нужные порты в firewalld или ufw, если они включены
+feed_firewall: true
+# адрес редактора, если он не feed_public_url/admin/
+feed_admin_url: "{{ feed_public_url | regex_replace('/$', '') }}/admin/"
+
+# время обновления по умолчанию — пока его не задали в редакторе («Настройки → Обновление»); true — обновить сразу после запуска
+feed_schedule: "06:00"
+feed_timezone: Europe/Moscow
+feed_run_on_start: false
+# пользователь контейнера — владелец папок данных и ключей
+feed_uid: 10001
+feed_gid: 10001
+# дополнительные переменные окружения (например, для профиля сайта): {ИМЯ: значение}
+feed_env: {}
+
+# начальные настройки сайта (config/site.json) — обычно не нужны: всё задаётся в редакторе («Настройки»).
+# Нужны для профиля сайта или если настройки не редактируются в интерфейсе (например, category_map).
+# Словарь здесь или готовый файл на управляющей машине (feed_site_file); «Настройки» редактора важнее.
+feed_site: {}
+feed_site_file: ""
+# профиль сайта (папка с site_profile.py на управляющей машине; пусто — поведение по умолчанию)
+feed_profile_dir: ""
+# необязательные папки на управляющей машине: начальные данные (копируются, только если данных ещё нет)
+# и файлы сайта (логотип и т. п.)
+feed_seed_dir: ""
+feed_assets_dir: ""
+
+# ключи и пароли — Docker secrets, по файлу на ключ. Значения — в vault.yml (vault_feed_secrets);
+# пустое значение — ключ не используется (его можно ввести и потом, в «Настройках» редактора)
+feed_secret_names:
+  - tg_bot_token
+  - site_tilda_1c_url
+  - site_tilda_1c_user
+  - site_tilda_1c_password
+  - backup_s3_key_id
+  - backup_s3_secret
+  - backup_passphrase
+# ключи профиля сайта (например, для нейросети или внешних систем)
+feed_extra_secret_names: []
+vault_feed_secrets: {}
+vault_feed_registry_password: ""

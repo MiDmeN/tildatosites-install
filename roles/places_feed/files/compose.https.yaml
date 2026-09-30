@@ -1,0 +1,17 @@
+# Необязательно: HTTPS без своего прокси. Caddy выпускает сертификат Let's Encrypt на FEED_DOMAIN
+# и передаёт запросы приложению. Нужны DNS-запись домена на этот сервер, открытый порт 80 (через него
+# Let's Encrypt подтверждает домен) и порт HTTPS — FEED_HTTPS_PORT, по умолчанию 443.
+#   docker compose -f compose.yaml -f compose.https.yaml up -d
+# (или COMPOSE_FILE=compose.yaml:compose.https.yaml в .env — тогда хватает docker compose up -d)
+services:
+  https:
+    image: caddy:2
+    restart: unless-stopped
+    command: caddy reverse-proxy --from https://${FEED_DOMAIN:?задайте FEED_DOMAIN в .env}:${FEED_HTTPS_PORT:-443} --to web:8080
+    ports:
+      - "80:80"
+      - "${FEED_HTTPS_PORT:-443}:${FEED_HTTPS_PORT:-443}"
+    volumes:
+      - ./caddy:/data
+    depends_on:
+      - web

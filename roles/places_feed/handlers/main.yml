@@ -1,0 +1,6 @@
+---
+- name: Перезапустить приложение
+  ansible.builtin.command: docker compose up -d --force-recreate --remove-orphans
+  args:
+    chdir: "{{ feed_dir }}"
+  changed_when: true

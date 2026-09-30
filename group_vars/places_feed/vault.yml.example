@@ -1,0 +1,16 @@
+---
+# Необязательно. Для запуска ключи не нужны: их вводят в редакторе («Настройки»).
+# Этот файл нужен, если образ лежит в закрытом реестре или ключи удобнее задать сразу при установке.
+# Скопируйте в vault.yml, впишите значения и зашифруйте:
+#   ansible-vault encrypt group_vars/places_feed/vault.yml
+# тогда запускайте playbook с --ask-vault-pass.
+# Ключ, который уже есть на сервере (непустой файл в secrets/), из vault не перезаписывается.
+vault_feed_registry_password: ""   # токен реестра образов, если образ закрытый (и feed_registry_user в vars.yml)
+vault_feed_secrets: {}
+#  tg_bot_token: ""            # токен Telegram-бота
+#  site_tilda_1c_url: ""       # коннектор 1С второго сайта Tilda
+#  site_tilda_1c_user: ""
+#  site_tilda_1c_password: ""
+#  backup_s3_key_id: ""        # резервные копии в S3
+#  backup_s3_secret: ""
+#  backup_passphrase: ""

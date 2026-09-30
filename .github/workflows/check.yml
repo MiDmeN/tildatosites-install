@@ -1,0 +1,60 @@
+name: Проверка установки
+
+# Ставит программу этим playbook на машину CI из образа Docker Hub (midmen/tildatosites:latest) и проверяет,
+# что редактор отвечает и выдана ссылка владельца. Второй запуск — как обновление: ничего не должно сломаться.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 5 * * 1"          # раз в неделю — вдруг новый образ или новая версия Ansible что-то сломали
+
+jobs:
+  install:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Ansible
+        run: pip install -q ansible-core
+
+      - name: Синтаксис
+        run: |
+          printf '[places_feed]\nlocalhost ansible_connection=local\n' > inventory.ci.ini
+          ansible-playbook -i inventory.ci.ini playbook.yml --syntax-check
+
+      - name: Не заданы адрес и владелец — playbook останавливается
+        run: |
+          if ansible-playbook -i inventory.ci.ini playbook.yml > out.txt 2>&1; then
+            echo "playbook прошёл с учебными значениями"; exit 1
+          fi
+          grep -q "Не заданы обязательные переменные" out.txt
+
+      - name: Установить
+        run: |
+          ansible-playbook -i inventory.ci.ini playbook.yml \
+            -e feed_dir=/opt/places-feed-ci -e feed_public_url=http://127.0.0.1:8080 -e feed_owner=ci-owner
+
+      - name: Проверить работу
+        run: |
+          set -e
+          cd /opt/places-feed-ci
+          curl -fsS http://127.0.0.1:8080/healthz
+          curl -fsS -o /dev/null http://127.0.0.1:8080/admin/login
+          sudo docker compose logs web | grep -q 'Первый вход владельца ci-owner'
+          sudo docker compose exec -T web python feed.py version
+          sudo test -f secrets/tg_bot_token && sudo test ! -s secrets/tg_bot_token
+          sudo docker compose ps
+
+      - name: Повторный запуск (обновление) не трогает ключи
+        run: |
+          echo -n "ключ-на-сервере" | sudo tee /opt/places-feed-ci/secrets/tg_bot_token > /dev/null
+          ansible-playbook -i inventory.ci.ini playbook.yml \
+            -e feed_dir=/opt/places-feed-ci -e feed_public_url=http://127.0.0.1:8080 -e feed_owner=ci-owner
+          test "$(sudo cat /opt/places-feed-ci/secrets/tg_bot_token)" = "ключ-на-сервере"
+          curl -fsS http://127.0.0.1:8080/healthz

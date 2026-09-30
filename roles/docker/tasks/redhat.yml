@@ -1,0 +1,14 @@
+---
+# Docker Engine и compose на RHEL, Oracle Linux, Rocky, Alma, CentOS и Fedora — из официального репозитория Docker.
+# curl, а не get_url: get_url в ansible-core до 2.15 не работает с Python 3.12 на сервере
+- name: Репозиторий Docker
+  ansible.builtin.command:
+    cmd: >-
+      curl -fsSL -o /etc/yum.repos.d/docker-ce.repo
+      https://download.docker.com/linux/{{ 'fedora' if ansible_facts.distribution == 'Fedora'
+      else ('rhel' if ansible_facts.distribution == 'RedHat' else 'centos') }}/docker-ce.repo
+    creates: /etc/yum.repos.d/docker-ce.repo
+
+- name: Docker Engine и compose
+  ansible.builtin.dnf:
+    name: [docker-ce, docker-ce-cli, containerd.io, docker-compose-plugin]
