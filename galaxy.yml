@@ -8,7 +8,7 @@
 #   playbook:  - import_playbook: midmen.tildatosites.install
 namespace: midmen
 name: tildatosites
-version: 1.0.0
+version: 1.0.1
 readme: README.md
 authors:
   - MiDmeN
