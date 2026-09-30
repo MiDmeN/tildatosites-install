@@ -92,9 +92,19 @@
     mode: "0600"
   notify: Перезапустить приложение
 
-- name: Настройки сайта (config/site.json)
+# файл — как есть; словарь — в том же порядке ключей (порядок может что-то значить для профиля сайта)
+- name: Настройки сайта (config/site.json) из файла feed_site_file
+  when: feed_site_file | length > 0
   ansible.builtin.copy:
-    content: "{{ feed_site_effective | to_nice_json(indent=2) }}\n"
+    src: "{{ feed_site_file }}"
+    dest: "{{ feed_dir }}/config/site.json"
+    mode: "0644"
+  notify: Перезапустить приложение
+
+- name: Настройки сайта (config/site.json) из feed_site
+  when: feed_site_file | length == 0
+  ansible.builtin.copy:
+    content: "{{ feed_site | to_nice_json(indent=2, sort_keys=false) }}\n"
     dest: "{{ feed_dir }}/config/site.json"
     mode: "0644"
   notify: Перезапустить приложение
