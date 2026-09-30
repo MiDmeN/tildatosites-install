@@ -168,6 +168,31 @@ docker compose exec web python admin.py users invite <логин> --role admin  
 Остальные переменные (папка установки, порты, профиль сайта, закрытый реестр) описаны в
 `roles/places_feed/defaults/main.yml`. Обычно их менять не нужно.
 
+## Установщик в своём репозитории (коллекция Ansible)
+
+Если у вас свой репозиторий с настройками установки — например, чтобы ставить через CI, — установщик можно
+подключить как коллекцию `midmen.tildatosites` нужной версии, не копируя его:
+
+```
+# requirements.yml
+collections:
+  - name: https://github.com/MiDmeN/tildatosites-install.git
+    type: git
+    version: v1.0.0
+```
+```
+# deploy.yml
+- import_playbook: midmen.tildatosites.install
+```
+```
+ansible-galaxy collection install -r requirements.yml -p .collections
+ANSIBLE_COLLECTIONS_PATH=.collections ansible-playbook -i inventory.ini deploy.yml
+```
+Переменные — в `group_vars/places_feed.yml` рядом с вашим `inventory.ini`. Свои службы рядом с приложением
+подключаются файлами compose из `feed_compose_files`: они кладутся в папку установки после `compose.yaml`.
+
+Версии установщика — git-теги `vX.Y.Z`; однажды выпущенная версия не меняется.
+
 ## Если не работает
 
 - **Playbook остановился на «Проверить обязательные переменные».** Не заполнен `vars.yml`: адрес
