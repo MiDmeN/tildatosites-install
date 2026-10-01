@@ -12,11 +12,16 @@ on:
 
 jobs:
   install:
-    runs-on: ubuntu-latest
+    # машина CI — она же «сервер» для установки: проверяем на обеих поддерживаемых Ubuntu LTS
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-26.04]
+    runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
