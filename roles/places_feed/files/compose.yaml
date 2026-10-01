@@ -6,6 +6,9 @@ name: ${FEED_INSTANCE:-places-feed}
 
 x-app: &app
   image: ${FEED_IMAGE:-docker.io/midmen/tildatosites:latest}
+  # постоянное имя — им подписываются резервные копии (иначе — случайный номер контейнера, новый
+  # при каждом пересоздании, и копии одного сервера в хранилище выглядят как разные серверы)
+  hostname: ${FEED_SERVER_NAME:-places-feed}
   restart: unless-stopped
   env_file: .env
   environment:

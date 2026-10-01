@@ -61,12 +61,18 @@ jobs:
           sudo docker compose logs web | grep -q 'Первый вход владельца ci-owner'
           sudo docker compose exec -T web python feed.py version
           sudo test -f secrets/tg_bot_token && sudo test ! -s secrets/tg_bot_token
+          # имя хоста контейнеров — имя сервера (им подписываются резервные копии)
+          test "$(sudo docker compose exec -T web hostname)" = "$(uname -n)"
+          test "$(sudo docker compose exec -T scheduler hostname)" = "$(uname -n)"
           sudo docker compose ps
 
-      - name: Повторный запуск (обновление) не трогает ключи
+      - name: Повторный запуск (обновление) не трогает ключи и не перезапускает приложение зря
         run: |
           echo -n "ключ-на-сервере" | sudo tee /opt/places-feed-ci/secrets/tg_bot_token > /dev/null
+          started() { sudo docker inspect -f '{{.State.StartedAt}}' "$(cd /opt/places-feed-ci && sudo docker compose ps -q web)"; }
+          before="$(started)"
           ansible-playbook -i inventory.ci.ini playbook.yml \
             -e feed_dir=/opt/places-feed-ci -e feed_public_url=http://127.0.0.1:8080 -e feed_owner=ci-owner
           test "$(sudo cat /opt/places-feed-ci/secrets/tg_bot_token)" = "ключ-на-сервере"
+          test "$(started)" = "$before" || { echo "повторный запуск перезапустил приложение без изменений"; exit 1; }
           curl -fsS http://127.0.0.1:8080/healthz
